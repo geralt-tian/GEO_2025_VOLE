@@ -47,6 +47,9 @@ public:
 
   void s_extend(int32_t dim, uint64_t *inA, uint64_t *outB, int32_t bwA,
                 int32_t bwB, uint8_t *msbA = nullptr);
+                
+    void s_extend_msb(int32_t dim, uint64_t *inA, uint64_t *outB, int32_t bwA,
+                int32_t bwB, uint8_t *msbA = nullptr);
 };
 
 #endif // ZERO_EXT_H__

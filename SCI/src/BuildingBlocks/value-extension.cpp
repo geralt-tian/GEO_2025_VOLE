@@ -119,3 +119,54 @@ void XTProtocol::s_extend(int32_t dim, uint64_t *inA, uint64_t *outB,
   delete[] mapped_inA;
   delete[] mapped_outB;
 }
+
+void XTProtocol::s_extend_msb(int32_t dim, uint64_t *inA, uint64_t *outB,
+                          int32_t bwA, int32_t bwB, uint8_t *msbA) {
+  if (bwA == bwB) {
+    memcpy(outB, inA, sizeof(uint64_t) * dim);
+    return;
+  }
+  assert(bwB > bwA && "Extended bitwidth should be > original");
+  uint64_t mask_bwA = (bwA == 64 ? -1 : ((1ULL << bwA) - 1));
+  uint64_t mask_bwB = (bwB == 64 ? -1 : ((1ULL << bwB) - 1));
+
+  uint64_t *mapped_inA = new uint64_t[dim];
+  uint64_t *mapped_outB = new uint64_t[dim];
+  if (party == sci::ALICE) {
+    for (int i = 0; i < dim; i++) {
+      mapped_inA[i] = (inA[i] + (1ULL << (bwA - 1))) & mask_bwA;
+    }
+  } else { // BOB
+    for (int i = 0; i < dim; i++) {
+      mapped_inA[i] = inA[i];
+    }
+  }
+
+  uint8_t *tmp_msbA = nullptr;
+  if (msbA != nullptr) {
+    tmp_msbA = new uint8_t[dim];
+    for (int i = 0; i < dim; i++) {
+      tmp_msbA[i] = (party == sci::ALICE ? msbA[i] ^ 1 : msbA[i]);
+    }
+  }
+  uint64_t *wrap = new uint64_t[dim];
+  // this->z_extend_msb(dim, mapped_inA, mapped_outB, bwA, bwB, tmp_msbA);
+  this->aux->clear_MSB_to_Wrap_bitMul(dim, inA, msbA, wrap, bwB);
+
+
+  if (msbA != nullptr) {
+    delete[] tmp_msbA;
+  }
+
+  if (party == sci::ALICE) {
+    for (int i = 0; i < dim; i++) {
+      outB[i] = (inA[i]+((int)pow(2,bwB)-(int)pow(2,bwA))*(wrap[i]+1)) & mask_bwB;
+    }
+  } else { // BOB
+    for (int i = 0; i < dim; i++) {
+      outB[i] = (inA[i]+((int)pow(2,bwB)-(int)pow(2,bwA))*(wrap[i])) & mask_bwB;
+    }
+  }
+  delete[] mapped_inA;
+  delete[] mapped_outB;
+}

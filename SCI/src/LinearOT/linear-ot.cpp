@@ -21,6 +21,8 @@ SOFTWARE.
 
 #include "LinearOT/linear-ot.h"
 #include <cmath>
+#include <iostream>
+#include <typeinfo>
 
 #define MAX_NUM_OT (1 << 20)
 
@@ -125,7 +127,10 @@ void LinearOT::matmul_cleartext(int dim1, int dim2, int dim3, uint64_t *inA,
 void LinearOT::hadamard_cross_terms(int32_t dim, uint64_t *inA, uint64_t *inB,
                                     uint64_t *outC, int32_t bwA, int32_t bwB,
                                     int32_t bwC, MultMode mode) {
+  std::cout << "DEBUG: Inside hadamard_cross_terms, calling matmul_cross_terms" << std::endl;
+  std::cout << "DEBUG: Parameters - dim=" << dim << ", bwA=" << bwA << ", bwB=" << bwB << ", bwC=" << bwC << std::endl;
   matmul_cross_terms(1, dim, 1, inA, inB, outC, bwA, bwB, bwC, false, mode);
+  std::cout << "DEBUG: Returned from matmul_cross_terms" << std::endl;
 }
 
 void LinearOT::hadamard_product(int32_t dim, uint64_t *inA, uint64_t *inB,
@@ -141,12 +146,15 @@ void LinearOT::matmul_cross_terms(int32_t dim1, int32_t dim2, int32_t dim3,
                                   uint64_t *inA, uint64_t *inB, uint64_t *outC,
                                   int32_t bwA, int32_t bwB, int32_t bwC,
                                   bool accumulate, MultMode mode) {
+  std::cout << "DEBUG: Inside matmul_cross_terms" << std::endl;
   bool use_straight_ot = false, use_reversed_ot = false;
   uint64_t maskC = (bwC == 64 ? -1 : ((1ULL << bwC) - 1));
   uint64_t *inS, *inR;
   int32_t bwR, dimS1, dimS2, dimR1, dimR2;
   // A whole row of values is multiplied to a element using only bwR OTs
   bool row_batching;
+  
+  std::cout << "DEBUG: Determining OT mode" << std::endl;
   if (mode == MultMode::Alice_has_A) {
     use_straight_ot = true;
     row_batching = false;
@@ -162,6 +170,7 @@ void LinearOT::matmul_cross_terms(int32_t dim1, int32_t dim2, int32_t dim3,
   } else {
     use_straight_ot = true;
     use_reversed_ot = true;
+    // use_reversed_ot = false;
     // if (bwA*dim1*dim2 > bwB*dim2*dim3) {
     if (bwA > bwB) {
       row_batching = false;
@@ -169,6 +178,11 @@ void LinearOT::matmul_cross_terms(int32_t dim1, int32_t dim2, int32_t dim3,
       row_batching = true;
     }
   }
+  
+  std::cout << "DEBUG: Mode selected - straight_ot=" << use_straight_ot 
+            << ", reversed_ot=" << use_reversed_ot 
+            << ", row_batching=" << row_batching << std::endl;
+  
   if (row_batching) {
     inS = inB;
     inR = inA;
@@ -179,6 +193,7 @@ void LinearOT::matmul_cross_terms(int32_t dim1, int32_t dim2, int32_t dim3,
     dimR2 = dim2;
   } else {
     // inS = inA;
+    std::cout << "DEBUG: Allocating memory for inS" << std::endl;
     inS = new uint64_t[dim1 * dim2];
     memcpy(inS, inA, dim1 * dim2 * sizeof(uint64_t));
     inR = inB;
@@ -200,6 +215,13 @@ void LinearOT::matmul_cross_terms(int32_t dim1, int32_t dim2, int32_t dim3,
   else
     batch_size = max_num_ot;
 
+  std::cout << "DEBUG: Calculated batch parameters - num_ot=" << num_ot 
+            << ", msgs_per_ot=" << msgs_per_ot 
+            << ", dim=" << dim 
+            << ", max_num_ot=" << max_num_ot 
+            << ", batch_size=" << batch_size << std::endl;
+
+  std::cout << "DEBUG: Allocating memory for OT" << std::endl;
   uint64_t *corr = new uint64_t[batch_size * msgs_per_ot];
   uint64_t *ABs = new uint64_t[batch_size * msgs_per_ot];
   uint64_t *ABr = new uint64_t[batch_size * msgs_per_ot];
@@ -207,6 +229,7 @@ void LinearOT::matmul_cross_terms(int32_t dim1, int32_t dim2, int32_t dim3,
   uint64_t *tmpR = new uint64_t[dim];
   memcpy(tmpR, inR, dim * sizeof(uint64_t));
 
+  std::cout << "DEBUG: Initializing memory" << std::endl;
   memset(ABs, 0, batch_size * msgs_per_ot * sizeof(uint64_t));
   memset(ABr, 0, batch_size * msgs_per_ot * sizeof(uint64_t));
   if (accumulate) {
@@ -214,21 +237,29 @@ void LinearOT::matmul_cross_terms(int32_t dim1, int32_t dim2, int32_t dim3,
   } else {
     memset(outC, 0, dim1 * dim2 * dim3 * sizeof(uint64_t));
   }
+  
   if (!row_batching) {
+    std::cout << "DEBUG: Transposing matrix" << std::endl;
     // inplace transposing is fine because inS is a copy if row_batching = false
     matrix_transpose(inS, dimS1, dimS2);
   }
 
+  // std::cout << "DEBUG: Starting OT loop" << std::endl;
   for (int i = 0; i < num_ot; i += batch_size) {
-	std::vector<int> msg_len;
+    // std::cout << "DEBUG: OT iteration i=" << i << "/" << num_ot << std::endl;
+    std::vector<int> msg_len;
     if (batch_size <= num_ot - i)
       msg_len.resize(batch_size / dim);
     else
       msg_len.resize((num_ot - i) / dim);
+    
+    // std::cout << "DEBUG: Setting up msg_len with size=" << msg_len.size() << std::endl;
     for (int j = i; j < i + batch_size and j < num_ot; j += dim) {
       int bit_offset = i / dim;
       int bit_idx = j / dim;
       msg_len[bit_idx - bit_offset] = bwC - bit_idx;
+      
+      // std::cout << "DEBUG: Inner loop j=" << j << ", bit_idx=" << bit_idx << ", msg_len=" << msg_len[bit_idx - bit_offset] << std::endl;
       for (int k = j; k < j + dim and k < i + batch_size; k++) {
         int inp_idx = k - j;
         int row_idx_R = inp_idx / dimR2;
@@ -248,48 +279,111 @@ void LinearOT::matmul_cross_terms(int32_t dim1, int32_t dim2, int32_t dim3,
         tmpR[inp_idx] >>= 1;
       }
     }
+    
+    std::cout << "DEBUG: OT operation setup complete, calling OT functions" << std::endl;
+    
     if (use_straight_ot) {
+      // std::cout << "DEBUG: Using straight OT, party=" << party << std::endl;
+      // std::cout << "DEBUG: batch_size=" << batch_size << ", num_ot - i=" << (num_ot - i) << std::endl;
+      // std::cout << "DEBUG: ABs=" << (void*)ABs << ", corr=" << (void*)corr << ", msg_len.size()=" << msg_len.size() << ", batch_size=" << batch_size << ", msgs_per_ot=" << msgs_per_ot << std::endl;
+      // std::cout << "DEBUG: msg_len contents: ";
+      // for (size_t idx = 0; idx < msg_len.size(); ++idx) std::cout << msg_len[idx] << " ";
+      // std::cout << std::endl;
       if (party == sci::ALICE) {
+        // std::cout << "DEBUG: ALICE sending batched COT 0" << std::endl;
         if (batch_size <= num_ot - i) {
+          // std::cout << "DEBUG: ALICE sending batched COT 1" << std::endl;
+          //    std::cout << "DEBUG: otpack->iknp_straight type: " << typeid(*otpack->iknp_straight).name() << std::endl;
           otpack->iknp_straight->send_batched_cot(ABs, corr, msg_len,
                                                   batch_size, msgs_per_ot);
         } else {
+          // std::cout << "DEBUG: ALICE sending batched COT 2" << std::endl;
           otpack->iknp_straight->send_batched_cot(ABs, corr, msg_len,
                                                   num_ot - i, msgs_per_ot);
         }
+        // std::cout << "DEBUG: ALICE completed sending batched COT" << std::endl;
       } else { // party == sci::BOB
+        // std::cout << "DEBUG: BOB receiving batched COT" << std::endl;
+        // std::cout << "DEBUG: ABr=" << (void*)ABr << ", choice=" << (void*)choice << std::endl;
         if (batch_size <= num_ot - i) {
+          // std::cout << "DEBUG: BOB receiving batched COT 1" << std::endl;
+          //    std::cout << "DEBUG: otpack->iknp_straight type: " << typeid(*otpack->iknp_straight).name() << std::endl;
           otpack->iknp_straight->recv_batched_cot(ABr, choice, msg_len,
                                                   batch_size, msgs_per_ot);
         } else {
+          // std::cout << "DEBUG: BOB receiving batched COT 2" << std::endl;
           otpack->iknp_straight->recv_batched_cot(ABr, choice, msg_len,
                                                   num_ot - i, msgs_per_ot);
         }
+        // std::cout << "DEBUG: BOB completed receiving batched COT" << std::endl;
       }
     }
+    
     if (use_reversed_ot) {
+      // std::cout << "DEBUG: Using reversed OT, party=" << party << std::endl;
       if (party == sci::ALICE) {
+        // std::cout << "DEBUG: ALICE receiving batched COT" << std::endl;
         if (batch_size <= num_ot - i) {
+          // std::cout << "DEBUG: ALICE receiving batched COT second" << std::endl;
           otpack->iknp_reversed->recv_batched_cot(ABr, choice, msg_len,
                                                   batch_size, msgs_per_ot);
         } else {
           otpack->iknp_reversed->recv_batched_cot(ABr, choice, msg_len,
                                                   num_ot - i, msgs_per_ot);
         }
+        // std::cout << "DEBUG: ALICE completed receiving batched COT" << std::endl;
       } else { // party == sci::BOB
+        // std::cout << "DEBUG: BOB sending batched COT" << std::endl;
         if (batch_size <= num_ot - i) {
+          // std::cout << "DEBUG: BOB sending batched COT second" << std::endl;
           otpack->iknp_reversed->send_batched_cot(ABs, corr, msg_len,
                                                   batch_size, msgs_per_ot);
         } else {
           otpack->iknp_reversed->send_batched_cot(ABs, corr, msg_len,
                                                   num_ot - i, msgs_per_ot);
         }
+        // std::cout << "DEBUG: BOB completed sending batched COT" << std::endl;
       }
     }
+
+
+if (use_reversed_ot) {
+      // std::cout << "DEBUG: Using reversed OT, party=" << party << std::endl;
+      if (party == sci::ALICE) {
+        // std::cout << "DEBUG: ALICE receiving batched COT" << std::endl;
+        if (batch_size <= num_ot - i) {
+          // std::cout << "DEBUG: ALICE receiving batched COT second" << std::endl;
+          otpack->iknp_reversed->recv_batched_cot(ABr, choice, msg_len,
+                                                  batch_size, msgs_per_ot);
+        } else {
+          otpack->iknp_reversed->recv_batched_cot(ABr, choice, msg_len,
+                                                  num_ot - i, msgs_per_ot);
+        }
+        // std::cout << "DEBUG: ALICE completed receiving batched COT" << std::endl;
+      } 
+      if (party == sci::BOB) {
+        // std::cout << "DEBUG: BOB sending batched COT" << std::endl;
+        if (batch_size <= num_ot - i) {
+          // std::cout << "DEBUG: BOB sending batched COT second" << std::endl;
+          otpack->iknp_reversed->send_batched_cot(ABs, corr, msg_len,
+                                                  batch_size, msgs_per_ot);
+        } else {
+          otpack->iknp_reversed->send_batched_cot(ABs, corr, msg_len,
+                                                  num_ot - i, msgs_per_ot);
+        }
+        // std::cout << "DEBUG: BOB completed sending batched COT" << std::endl;
+      }
+    }
+
+    
+    
+    std::cout << "DEBUG: Processing OT results" << std::endl;
     for (int h = 0; h < dim2; h++) {
       for (int j = i; j < i + batch_size and j < num_ot; j += dim) {
+        // std::cout << "DEBUG: FOR 1  " << std::endl;
         int bit_idx = j / dim;
         for (int k = 0; k < dim1 * dim3; k++) {
+          // std::cout << "DEBUG: Processing OT results 2  " << std::endl;
           int row_idx = (row_batching ? k / dim3 : k / dim1);
           int col_idx = (row_batching ? k % dim3 : k % dim1);
           int idx;
@@ -319,6 +413,8 @@ void LinearOT::matmul_cross_terms(int32_t dim1, int32_t dim2, int32_t dim3,
       }
     }
   }
+std::cout << "DEBUG: before !row_batching" << std::endl;
+
   if (!row_batching) {
     if (accumulate) {
       matrix_transpose(outC, dim3, dim1);
@@ -326,7 +422,7 @@ void LinearOT::matmul_cross_terms(int32_t dim1, int32_t dim2, int32_t dim3,
       matrix_transpose(outC, dim3, dim1, dim2);
     }
   }
-
+  std::cout << "DEBUG: before maskC" << std::endl;
   if (accumulate) {
     for (int k = 0; k < dim1 * dim3; k++) {
       outC[k] &= maskC;
@@ -336,7 +432,7 @@ void LinearOT::matmul_cross_terms(int32_t dim1, int32_t dim2, int32_t dim3,
       outC[k] &= maskC;
     }
   }
-
+  std::cout << "DEBUG: end all" << std::endl;
   delete[] corr;
   delete[] ABs;
   delete[] ABr;
@@ -616,7 +712,7 @@ void LinearOT::matrix_multiplication(int32_t dim1, int32_t dim2, int32_t dim3,
   uint64_t *cross_terms = new uint64_t[dim];
   matmul_cross_terms(dim1, dim2, dim3, tmpA, tmpB, cross_terms, bwA, bwB, bwC,
                      accumulate, mode);
-
+  std::cout << "DEBUG: after cross_terms" << std::endl;
   uint64_t *local_terms = new uint64_t[dim];
   if (party == sci::ALICE &&
       (mode == MultMode::Alice_has_A || mode == MultMode::Alice_has_B)) {
@@ -634,7 +730,7 @@ void LinearOT::matrix_multiplication(int32_t dim1, int32_t dim2, int32_t dim3,
   uint8_t *wB = new uint8_t[dim2 * dim3];
   uint64_t *wA_B = new uint64_t[dim];
   uint64_t *wB_A = new uint64_t[dim];
-
+  std::cout << "DEBUG: before wA" << std::endl;
   if (bwC > bwA) {
     if (mode == MultMode::Alice_has_A || mode == MultMode::Bob_has_A) {
       memset(wA, 0, dim1 * dim2 * sizeof(uint8_t));
@@ -651,10 +747,21 @@ void LinearOT::matrix_multiplication(int32_t dim1, int32_t dim2, int32_t dim3,
             tmp_msbA[i] = (sender_A && (extra_bits > 0) ? 0 : msbA[i]);
           }
         }
+        // std::cout << "DEBUG: before MSB_to_Wrap" << std::endl;
+        // for (int i = 0; i < dim1 * dim2; i++) {
+        //   std::cout << tmpA[i] << " ";
+        // }
+        // std::cout << std::endl;
+        // std::cout << "DEBUG: before knowMSB_to_Wrap" << std::endl;
+        // aux->knowMSB_to_Wrap(tmpA, tmp_msbA, wA, dim1 * dim2, bwA);
         aux->MSB_to_Wrap(tmpA, tmp_msbA, wA, dim1 * dim2, bwA);
+        // std::cout << "DEBUG: after MSB_to_Wrap" << std::endl;
         delete[] tmp_msbA;
       } else {
+        // std::cout << "DEBUG: before wrap_computation" << std::endl;
         aux->wrap_computation(tmpA, wA, dim1 * dim2, bwA);
+        // aux->knowMSB_to_Wrap(tmpA, msbA, wA, dim1 * dim2, bwA);
+        // std::cout << "DEBUG: after wrap_computation" << std::endl;
       }
       uint64_t *wA64 = new uint64_t[dim1 * dim2];
       for (int i = 0; i < dim1 * dim2; i++) {
@@ -665,6 +772,7 @@ void LinearOT::matrix_multiplication(int32_t dim1, int32_t dim2, int32_t dim3,
       delete[] wA64;
     }
   }
+  std::cout << "DEBUG: before wB" << std::endl;
   if (bwC > bwB) {
     if (mode == MultMode::Alice_has_B || mode == MultMode::Bob_has_B) {
       memset(wB, 0, dim2 * dim3 * sizeof(uint8_t));
@@ -695,7 +803,7 @@ void LinearOT::matrix_multiplication(int32_t dim1, int32_t dim2, int32_t dim3,
       delete[] wB64;
     }
   }
-
+  std::cout << "DEBUG: before tmpC" << std::endl;
   uint64_t *tmpC = new uint64_t[dim];
   int inner_loop_size = (accumulate ? dim2 : 1);
   for (int i = 0; i < dim; i++) {
@@ -728,12 +836,13 @@ void LinearOT::matrix_multiplication(int32_t dim1, int32_t dim2, int32_t dim3,
       }
     }
   }
+  std::cout << "DEBUG: before truncate" << std::endl;
   if (accumulate) {
     trunc->truncate_and_reduce(dim1 * dim3, tmpC, outC, extra_bits, bwC);
   } else {
     memcpy(outC, tmpC, dim * sizeof(uint64_t));
   }
-
+  std::cout << "DEBUG: end all" << std::endl;
   delete[] cross_terms;
   delete[] local_terms;
   delete[] wA;

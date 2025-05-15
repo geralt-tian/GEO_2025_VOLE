@@ -787,8 +787,9 @@ public:
   void send_batched_cot(uint64_t *data0, uint64_t *corr,
                         std::vector<int> msg_len, int num_ot,
                         int msgs_per_ot = 1) {
+    std::cout << "[split-iknp] Warning: send_batched_cot" << std::endl;
     send_pre(num_ot);
-
+    std::cout << "send_pre(num_ot)" << std::endl;
     int num_msg_len = msg_len.size();
     // The number of OTs of a particular message bitlength
     // Simplifying assumption: Each message bitlength has equal number of OTs
@@ -826,7 +827,9 @@ public:
           }
         }
         if (bsize <= (dim - j) * num_hashes)
-          crh.Hn(pad, pad, 2 * bsize);
+          // {  std::cout << "bsize <= (dim - j) * num_hashes" << std::endl;
+            crh.Hn(pad, pad, 2 * bsize);
+            // std::cout << "crh.Hn(pad, pad, 2 * bsize)" << std::endl;}
         else
           crh.Hn(pad, pad, 2 * (dim - j) * num_hashes);
 
@@ -859,6 +862,7 @@ public:
         io->send_data(y, sizeof(uint8_t) * ysize_per_ot * lnum_ot);
       }
     }
+    std::cout << "send_batched_cot done" << std::endl;
     delete[] pad;
     // delete[] unpacked_pad0;
     // delete[] unpacked_pad1;
@@ -873,8 +877,9 @@ public:
   // batched)
   void recv_batched_cot(uint64_t *data, bool *b, std::vector<int> msg_len,
                         int num_ot, int msgs_per_ot = 1) {
+    std::cout << "[split-iknp] Warning: recv_batched_cot" << std::endl;
     recv_pre(b, num_ot);
-
+    std::cout << "recv_pre(b, num_ot)" << std::endl;
     int num_msg_len = msg_len.size();
     // The number of OTs of a particular message bitlength
     // Simplifying assumption: Each message bitlength has equal number of OTs

@@ -39,6 +39,7 @@ public:
   ~SilentOT() { delete ferret; }
 
   void send_impl(const block *data0, const block *data1, int64_t length) {
+    // std::cout << "DEBUG: before send_ot_rcm_cc" << std::endl;
     send_ot_cm_cc(data0, data1, length);
   }
 
@@ -47,6 +48,7 @@ public:
   }
 
   template <typename T> void send_impl(T **data, int length, int l) {
+    // std::cout << "DEBUG: before send_ot_cm_cc" << std::endl;
     send_ot_cm_cc(data, length, l);
   }
 
@@ -56,6 +58,7 @@ public:
   }
 
   template <typename T> void send_impl(T **data, int length, int N, int l) {
+    // std::cout << "DEBUG: before send_ot_cm_cc" << std::endl;
     send_ot_cm_cc(data, length, N, l);
   }
 
@@ -65,11 +68,13 @@ public:
   }
 
   void send_cot(uint64_t *data0, const uint64_t *corr, int length, int l) {
+    // std::cout << "cheetah::SilentOT::send_cot" << std::endl;
     send_ot_cam_cc(data0, corr, length, l);
   }
 
   void recv_cot(uint64_t *data, const bool *b, int length, int l) {
-    recv_ot_cam_cc(data, b, length, l);
+    // std::cout << "cheetah::SilentOT::recv_cot" << std::endl;
+    recv_ot_cam_cc(data, b, length, l); 
   }
 
   // chosen additive message, chosen choice
@@ -116,6 +121,8 @@ public:
 
       sci::pack_cot_messages(y, corr_data, corrected_y_size, corrected_bsize,
                              l);
+      // std::cout << "[send_cot] i=" << i << ", length=" << length
+                // << ", sending size=" << (sizeof(uint64_t) * corrected_y_size) << std::endl;
       ferret->io->send_data(y, sizeof(uint64_t) * (corrected_y_size));
     }
 
@@ -151,11 +158,12 @@ public:
 
       memcpy(pad, rcm_data + i, std::min(ot_bsize, length - i) * sizeof(block));
       ferret->mitccrh.template hash<ot_bsize, 1>(pad);
-
+      // std::cout << "[recv_ot_cam_cc] i=" << i << ", length=" << length
+                // << ", recvd size=" << (sizeof(uint64_t) * corrected_recvd_size) << std::endl;
       ferret->io->recv_data(recvd, sizeof(uint64_t) * corrected_recvd_size);
-
+      // std::cout << "[recv_ot_cam_cc] recvd=" << (void*)recvd << std::endl;
       sci::unpack_cot_messages(corr_data, recvd, corrected_bsize, l);
-
+      // std::cout << "[recv_ot_cam_cc] corr_data=" << (void*)corr_data << std::endl;
       for (int j = i; j < i + ot_bsize and j < length; ++j) {
         if (b[j])
           data[j] = (corr_data[j - i] - _mm_extract_epi64(pad[j - i], 0)) &
@@ -170,6 +178,7 @@ public:
 
   // chosen message, chosen choice
   void send_ot_cm_cc(const block *data0, const block *data1, int64_t length) {
+    std::cout << "DEBUG: before send_ot_rcm_cc" << std::endl;
     block *data = new block[length];
     send_ot_rcm_cc(data, length);
 
@@ -564,13 +573,98 @@ public:
   void send_batched_cot(uint64_t *data0, uint64_t *corr,
                         std::vector<int> msg_len, int num_ot,
                         int msgs_per_ot = 1) {
-    throw std::logic_error("Not implemented");
+    std::cout << "send_batched_cot start" << std::endl;
+    int num_msg_len = msg_len.size();
+    if (!(num_msg_len > 0)) {
+      std::cout << "num_msg_len = " << num_msg_len << std::endl;
+      std::cout << "[send_batched_cot] Warning: num_msg_len <= 0!" << std::endl;
+      return;
+    }
+    if (!(num_ot > 0)) {
+      std::cout << "[send_batched_cot] Warning: num_ot <= 0!" << std::endl;
+      return;
+    }
+    if (!(msgs_per_ot > 0)) {
+      std::cout << "[send_batched_cot] Warning: msgs_per_ot <= 0!" << std::endl;
+      return;
+    }
+    if (!(num_ot % num_msg_len == 0)) {
+      std::cout << "[silent_ot] Warning: num_ot must be divisible by msg_len.size()!" << std::endl;
+      return;
+    }
+    int dim = num_ot / num_msg_len;
+    int offset = 0;
+    for (int i = 0; i < num_msg_len; ++i) {
+      int l = msg_len[i];
+      int n = dim * msgs_per_ot;
+      if (!(l > 0 && l <= 64)) {
+        std::cout << "[silent_ot] Warning: l=" << l << " not in (0, 64]!" << std::endl;
+        return;
+      }
+      if (!(offset + n <= num_ot * msgs_per_ot)) {
+        std::cout << "[silent_ot] Warning: send_batched_cot: offset+n out of bounds! offset=" << offset << ", n=" << n << ", num_ot*msgs_per_ot=" << (num_ot*msgs_per_ot) << std::endl;
+        return;
+      }
+      std::cout << "[send_cot] data0=" << (void*)data0 << ", corr=" << (void*)corr << ", n=" << n << ", l=" << l << std::endl;
+      send_cot(data0 + offset, corr + offset, n, l);
+      std::cout << "send_cot(data + offset, b + offset, n, l); done" << std::endl;
+      offset += n;
+    }
+    ferret->io->flush();
+    std::cout << "send_batched_cot done" << std::endl;
   }
 
   void recv_batched_cot(uint64_t *data, bool *b, std::vector<int> msg_len,
                         int num_ot, int msgs_per_ot = 1) {
-    throw std::logic_error("Not implemented");
+    std::cout << "recv_batched_cot start" << std::endl;
+    int num_msg_len = msg_len.size();
+    if (!(num_msg_len > 0)) {
+      std::cout << "num_msg_len = " << num_msg_len << std::endl;
+      std::cout << "[silent_ot] Warning: num_msg_len <= 0!" << std::endl;
+      return;
+    }
+    if (!(num_ot > 0)) {
+      std::cout << "[silent_ot] Warning: num_ot <= 0!" << std::endl;
+      return;
+    }
+    if (!(msgs_per_ot > 0)) {
+      std::cout << "[silent_ot] Warning: msgs_per_ot <= 0!" << std::endl;
+      return;
+    }
+    if (!(num_ot % num_msg_len == 0)) {
+      std::cout << "[silent_ot] Warning: num_ot must be divisible by msg_len.size()!" << std::endl;
+      return;
+    }
+    int dim = num_ot / num_msg_len;
+    int offset = 0;
+    for (int i = 0; i < num_msg_len; ++i) {
+      int l = msg_len[i];
+      int n = dim * msgs_per_ot;
+      if (!(l > 0 && l <= 64)) {
+        std::cout << "[silent_ot] Warning: l=" << l << " not in (0, 64]!" << std::endl;
+        return;
+      }
+      if (!(offset + n <= num_ot * msgs_per_ot)) {
+        std::cout << "[silent_ot] Warning: recv_batched_cot: offset+n out of bounds! offset=" << offset << ", n=" << n << ", num_ot*msgs_per_ot=" << (num_ot*msgs_per_ot) << std::endl;
+        return;
+      }
+      // std::cout << "[recv_cot] i=" << i << ", length=" << length
+      //           << ", expecting size=" << (sizeof(uint64_t) * corrected_recvd_size) << std::endl;
+      recv_cot(data + offset, b + offset, n, l);
+      
+      std::cout << "recv_cot(data + offset, b + offset, n, l); done" << std::endl;
+      offset += n;
+    }
+    ferret->io->flush();
+    std::cout << "recv_batched_cot done" << std::endl;
   }
+  
+
+
+
+
+
+
 
   int64_t get_rcot_count() const { return count_rcot_.load(); }
 };

@@ -149,7 +149,9 @@ void AuxProtocols::lookup_table(T **spec, T *x, T *y, int32_t size,
       }
     }
 
+    // std::cout << "DEBUG: before otpack->kkot" << std::endl;
     otpack->kkot[bw_x - 1]->send(data, size, bw_y);
+    // std::cout << "DEBUG: after otpack->kkot" << std::endl;
 
     for (int i = 0; i < size; i++) delete[] data[i];
     delete[] data;
@@ -158,7 +160,9 @@ void AuxProtocols::lookup_table(T **spec, T *x, T *y, int32_t size,
     for (int i = 0; i < size; i++) {
       choice[i] = x[i] & mask_x;
     }
+    // std::cout << "DEBUG: before otpack->kkot" << std::endl;
     otpack->kkot[bw_x - 1]->recv(y, choice, size, bw_y);
+    // std::cout << "DEBUG: after otpack->kkot" << std::endl;
 
     delete[] choice;
   }
@@ -204,19 +208,24 @@ void AuxProtocols::MSB_to_Wrap(uint64_t *x, uint8_t *msb_x, uint8_t *wrap_x,
         spec[i][j] = (((1 ^ msb_x[i] ^ bits_j[0]) * (msb_xb ^ bits_j[1])) ^
                       (msb_xb * bits_j[1]) ^ wrap_x[i]) &
                      1;
+        // std::cout << "DEBUG: spec[" << i << "][" << j << "] = " << static_cast<int>(spec[i][j]) << std::endl;
       }
     }
-    lookup_table<uint8_t>(spec, nullptr, nullptr, size, 2, 1);
+    // std::cout << "DEBUG: before lookup_table" << std::endl;
 
+    lookup_table<uint8_t>(spec, nullptr, nullptr, size, 2, 1);
+    std::cout << "DEBUG: after lookup_table" << std::endl;
     for (int i = 0; i < size; i++) delete[] spec[i];
     delete[] spec;
   } else {  // party == sci::BOB
     uint8_t *lut_in = new uint8_t[size];
     for (int i = 0; i < size; i++) {
       lut_in[i] = (((x[i] >> (bw_x - 1)) & 1) << 1) | msb_x[i];
+      // std::cout << "DEBUG: lut_in[" << i << "] = " << static_cast<int>(lut_in[i]) << std::endl;
     }
+    // std::cout << "DEBUG: before lookup_table" << std::endl;
     lookup_table<uint8_t>(nullptr, lut_in, wrap_x, size, 2, 1);
-
+    // std::cout << "DEBUG: after lookup_table" << std::endl;
     delete[] lut_in;
   }
 }
@@ -293,6 +302,169 @@ void AuxProtocols::msb1_to_wrap(uint64_t *x, uint8_t *wrap_x, int32_t size,
     delete[] msb_xb;
   }
 }
+
+
+void AuxProtocols::knowMSB_to_Wrap(uint64_t *x, uint8_t *msb_x, uint8_t *wrap_x,
+                                   int32_t size, int32_t bw_x)
+{
+  assert(bw_x <= 64);
+  uint8_t *t = new uint8_t[size];
+  uint8_t *t1 = new uint8_t[size];
+  uint8_t *z = new uint8_t[size];
+  if (party == sci::ALICE)
+  {
+    for (int i = 0; i < size; i++)
+    {
+      t[i] = (x[i] >> (bw_x - 1)) & 1;
+      t1[i] = 0;
+    }
+  }
+  else
+  {
+    for (int i = 0; i < size; i++)
+    {
+      t1[i] = (x[i] >> (bw_x - 1)) & 1;
+      t[i] = 0;
+    }
+  }
+std:: cout << "before and" << std::endl;
+  AND(t, t1, z, size);
+  std:: cout << "after and" << std::endl;
+  // for (int i = 0; i < size; i++)
+  // {
+  //   std:: cout << "t[" << i << "] = " << static_cast<int> (t[i] )<< std::endl;
+  //   std:: cout << "t1[" << i << "] = " << static_cast<int>(t1[i]) << std::endl;
+  //   std:: cout << "z[" << i << "] = " << static_cast<int>(z[i] )<< std::endl;
+  // }
+
+  if (party == sci::ALICE)
+  {
+    for (int i = 0; i < size; i++)
+    {
+      wrap_x[i] = (z[i] ^ t[i]) & 1;
+    }
+  }
+  else
+  {
+    for (int i = 0; i < size; i++)
+    {
+      wrap_x[i] = (z[i] ^ t1[i]) & 1;
+    }
+  }
+}
+
+
+
+void AuxProtocols::lastbit_MSB_to_Wrap_bitMul(int32_t dim, uint64_t *inA, uint64_t *outC, int32_t bwC)
+{
+  uint64_t mask_bwC = (bwC == 64 ? -1 : ((1ULL << bwC) - 1));
+  uint64_t *r = new uint64_t[dim];
+  uint64_t half = 1ULL << (bwC - 1);
+  for (int i = 0; i < dim; i++)
+  {
+
+    r[i] = inA[i] & 1;
+    // std::cout << "r[" << i << "] = " << r[i] << std::endl;
+  }
+
+  // Perform the multiplication
+  uint64_t *bit_mul = new uint64_t[dim];
+  if (party == sci::ALICE)
+  {
+
+    sci::PRG128 prg;
+    uint64_t *data0 = new uint64_t[dim];
+    prg.random_data(data0, dim * sizeof(uint64_t));
+    otpack->iknp_straight->send_cot(data0, r, dim, bwC);
+    for (int i = 0; i < dim; i++)
+    {
+      // assert (msb[i] == 0);
+      outC[i] = ((1ULL << bwC) - data0[i]) & mask_bwC;
+    }
+    delete[] data0;
+  }
+  else
+  { // party == BOB
+    bool *choice = new bool[dim];
+    for (int i = 0; i < dim; i++)
+    {
+      choice[i] = r[i];
+    }
+    uint64_t *data = new uint64_t[dim];
+    otpack->iknp_straight->recv_cot(data, choice, dim, bwC);
+    for (int i = 0; i < dim; i++)
+    {
+      // assert (msb[i] == 0);
+      outC[i] = (data[i]) & mask_bwC;
+    }
+    delete[] choice;
+  }
+}
+
+void AuxProtocols::clear_MSB_to_Wrap_bitMul(int32_t dim, uint64_t *inA, uint8_t *msb, uint64_t *outC, int32_t bwC)
+{
+  uint64_t mask_bwC = (bwC == 64 ? -1 : ((1ULL << bwC) - 1));
+  uint64_t *r = new uint64_t[dim];
+  uint64_t half = 1ULL << (bwC - 1);
+  for (int i = 0; i < dim; i++)
+  {
+    if (msb[i] == 0)
+    {
+      if (inA[i] < half)
+        r[i] = 1;
+      else
+        r[i] = 0;
+    }
+    else
+    {
+      if (inA[i] >= half)
+        r[i] = 1;
+      else
+        r[i] = 0;
+    }
+    // std::cout << "r[" << i << "] = " << r[i] << std::endl;
+  }
+
+  // Perform the multiplication
+  uint64_t *bit_mul = new uint64_t[dim];
+  if (party == sci::ALICE)
+  {
+
+    sci::PRG128 prg;
+    uint64_t *data0 = new uint64_t[dim];
+    prg.random_data(data0, dim * sizeof(uint64_t));
+    otpack->iknp_straight->send_cot(data0, r, dim, bwC);
+    for (int i = 0; i < dim; i++)
+    {
+      // assert (msb[i] == 0);
+      if (msb[i] == 0)
+        outC[i] = -((1ULL << bwC) - data0[i]) & mask_bwC;
+      else
+        outC[i] = ((1ULL << bwC) - data0[i]) & mask_bwC;
+    }
+    delete[] data0;
+  }
+  else
+  { // party == BOB
+    bool *choice = new bool[dim];
+    for (int i = 0; i < dim; i++)
+    {
+      choice[i] = r[i];
+    }
+    uint64_t *data = new uint64_t[dim];
+    otpack->iknp_straight->recv_cot(data, choice, dim, bwC);
+    for (int i = 0; i < dim; i++)
+    {
+      // assert (msb[i] == 0);
+      if (msb[i] == 0)
+        outC[i] = (1 - data[i]) & mask_bwC;
+      else
+        outC[i] = (data[i]) & mask_bwC;
+    }
+    delete[] choice;
+  }
+}
+
 
 void AuxProtocols::AND(uint8_t *x, uint8_t *y, uint8_t *z, int32_t size) {
   int old_size = size;
