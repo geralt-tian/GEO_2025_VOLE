@@ -1,12 +1,6 @@
-# Cheetah: Lean and Fast Secure Two-Party Deep Neural Network Inference
-This repo contains a proof-of-concept implementation for our [Cheetah paper](https://eprint.iacr.org/2022/207).
-The codes are still under heavy developments, and **should not** be used in any security sensitive product.
+# SEAF: Secure Evaluation on Activation Functions with Dynamic Precision for Secure Two-Party Inference
+This section provides experimental instructions for the SEAF-VOLE component, covering four activation functions: GELU, Tanh, Sigmoid, and ELU.
 
-### Cheetah -> Secure Processing Unit
-Most of the Cheetah protocols has been re-written in the [SecretFlow](https://github.com/secretflow) project. Check the code [here](https://github.com/secretflow/spu/tree/main/src/libspu/mpc/cheetah).
-
-### Q&A (Updating)
-See [QA.md](QA.md).
 
 ### Repo Directory Description
 - `include/` Contains implementation of Cheetah's linear protocols.
@@ -42,23 +36,39 @@ See [QA.md](QA.md).
   * Ubuntu 18.04 with gcc 7.5.0 Intel(R) Xeon(R),  cmake 3.13
   * Ubuntu 20.04 with gcc 9.4.0 Intel(R) Xeon(R),  cmake 3.16.3
   
-### Building Cheetah and SCI-HE Demo
+### Building SEAF-VOLE-AF and SCI-HE Demo
 
-* Run `bash scripts/build.sh` which will build 6 executables in the `build/bin` folder
-	* `resnet50-cheetah` 
-	* `sqnet-cheetah`
-	* `densenet121-cheetah`
-	* `resnet50-SCI_HE`
-	* `sqnet-SCI_HE`
-	* `densenet121-SCI_HE`
+
 
 ### Local Demo 
 
-1. On one terminal run `bash scripts/run-server.sh cheetah sqnet`. The program will load the pretrained model in the folder `pretrained/` which might takes some time when the pretrained model is huge. 
+1. Enter the `build` directory:
+   ```bash
+   cd build
+   ```
 
-2. On other terminal run `bash scripts/run-client.sh cheetah sqnet`. The program will  load the prepared input image in the folder `pretrained`.  
-   * replace `cheetah` by `SCI_HE` to execute the CryptFlow2's counterpart.
-   * replace `sqnet` by `resnet50` to run on the ResNet50 model.
+2. Generate the Makefile using CMake:
+   ```bash
+   cmake ..
+   ```
+
+3. Compile the project (you can use multiple threads for faster compilation):
+   ```bash
+   make -j
+   ```
+
+4. In one terminal, navigate to the executable directory and start:
+   ```bash
+   cd bin
+   ./gelu-cheetah r=1
+   ```
+
+5. In another terminal, also navigate to the executable directory and start:
+   ```bash
+   cd build/bin
+   ./gelu-cheetah r=2
+   ```
+   > You can replace `gelu` with other activation functions such as `tanh`, `sigmoid`, or `elu` to test different functionalities.
 
 You can change the `SERVER_IP` and `SERVER_PORT` defined in the [scripts/common.sh](scripts/common.sh) to run the demo remotely.
 Also, you can use our throttle script to mimic a remote network condition within one Linux machine, see below.
