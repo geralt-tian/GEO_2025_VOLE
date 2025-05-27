@@ -30,11 +30,7 @@ This section provides experimental instructions for the SEAF-VOLE component, cov
 	* [hexl](https://github.com/intel/hexl/tree/1.2.2) We need hexl's AVX512 acceleration for achieving the reported numbers in our paper.
 
 * The generated objects are placed in the `build/deps/` folder.
-* Build has passed on the following setting
-  * MacOS 11.6 with clang 13.0.0, Intel Core i5, cmake 3.22.1
-  * Red Hat 7.2.0 with gcc 7.2.1, Intel(R) Xeon(R), cmake 3.12.0
-  * Ubuntu 18.04 with gcc 7.5.0 Intel(R) Xeon(R),  cmake 3.13
-  * Ubuntu 20.04 with gcc 9.4.0 Intel(R) Xeon(R),  cmake 3.16.3
+
   
 ### Building SEAF-VOLE-AF and SCI-HE Demo
 
