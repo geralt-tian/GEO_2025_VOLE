@@ -74,3 +74,6 @@ Also, you can use our throttle script to mimic a remote network condition within
 * To use the throttle script under [scripts/throttle.sh](scripts/throttle.sh) to limit the network speed and ping latency (require `sudo`)
 * For example, run `sudo scripts/throttle.sh wan` on a Linux OS which will limit the local-loop interface to about 400Mbps bandwidth and 40ms ping latency.
   You can check the ping latency by just `ping 127.0.0.1`. The bandwidth can be check using extra `iperf` command.
+
+**Reference Repository:**  
+**Project webpage:** <[Cheetah](https://github.com/Alibaba-Gemini-Lab/OpenCheetah/tree/main)>
