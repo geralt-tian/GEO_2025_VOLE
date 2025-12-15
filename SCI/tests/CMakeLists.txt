@@ -20,6 +20,7 @@ add_test_OT(tanh)
 add_test_OT(sqrt)
 add_test_OT(aux_protocols)
 add_test_OT(maxpool)
+add_test_OT(exp_nagx)
 
 add_test_HE(relu)
 add_test_HE(maxpool)

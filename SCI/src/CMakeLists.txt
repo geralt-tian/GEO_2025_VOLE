@@ -10,6 +10,7 @@ endif()
 
 add_subdirectory(utils)
 add_subdirectory(OT)
+add_subdirectory(GC)
 add_subdirectory(Millionaire)
 add_subdirectory(BuildingBlocks)
 
@@ -17,6 +18,7 @@ add_subdirectory(LinearOT)
 add_subdirectory(LinearHE)
 add_subdirectory(NonLinear)
 add_subdirectory(Math)
+add_subdirectory(FloatingPoint)
 add_library(SCI-common INTERFACE)
 
 find_package(Threads REQUIRED)
