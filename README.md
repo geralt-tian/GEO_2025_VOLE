@@ -1,79 +1,52 @@
-# SEAF: Secure Evaluation on Activation Functions with Dynamic Precision for Secure Two-Party Inference
-This section provides experimental instructions for the SEAF-VOLE component, covering four activation functions: GELU, Tanh, Sigmoid, and ELU.
-
-
-### Repo Directory Description
-- `include/` Contains implementation of Cheetah's linear protocols.
-- `SCI/` A fork of CryptFlow2's SCI library and contains implementation of Cheetah's non-linear protocols.
-- `networks/` Auto-generated cpp programs that evaluate some neural networks.
-- `pretrained/` Pretrained neural networks and inputs.
-- `patch/` Patches applied to the dependent libraries.
-- `credits/` Licenses of the dependencies. 
-- `scripts/` Helper scripts used to build the programs in this repo.
-
-### Requirements
-
-* openssl 
-* c++ compiler (>= 8.0 for the better performance on AVX512)
-* cmake >= 3.13
-* git
-* make
-* OpenMP (optional, only needed by CryptFlow2 for multi-threading)
-
-### Building Dependencies
-* Run `bash scripts/build-deps.sh` which will build the following dependencies
-	* [emp-tool](https://github.com/emp-toolkit/emp-tool) We follow the implementation in SCI that using emp-tool for network io and pseudo random generator.
-	* [emp-ot](https://github.com/emp-toolkit/emp-ot) We use Ferret in emp-ot as our VOLE-style OT.
-	* [Eigen](https://github.com/libigl/eigen) We use Eigen for tensor operations.
-	* [SEAL](https://github.com/microsoft/SEAL) We use SEAL's implementation for the BFV homomorphic encryption scheme.
-	* [zstd](https://github.com/facebook/zstd) We use zstd for compressing the ciphertext in SEAL which can be replaced by any other compression library.
-	* [hexl](https://github.com/intel/hexl/tree/1.2.2) We need hexl's AVX512 acceleration for achieving the reported numbers in our paper.
-
-* The generated objects are placed in the `build/deps/` folder.
-
-  
-### Building SEAF-VOLE-AF and SCI-HE Demo
+# Efficient and High-Accuracy Secure Two-Party Protocols for a Class of Functions with Real-number Inputs
 
 
 
-### Local Demo 
+## Setup
 
-1. Enter the `build` directory:
-   ```bash
-   cd build
-   ```
+For setup instructions, please refer to the README file located in the `SCI` folder.
 
-2. Generate the Makefile using CMake:
-   ```bash
-   cmake ..
-   ```
+We successfully completed the compilation on Ubuntu 22.04.5 LTS with Intel(R) Xeon(R) Platinum.
 
-3. Compile the project (you can use multiple threads for faster compilation):
-   ```bash
-   make -j
-   ```
 
-4. In one terminal, navigate to the executable directory and start:
-   ```bash
-   cd bin
-   ./gelu-cheetah r=1
-   ```
+## Code Structure
 
-5. In another terminal, also navigate to the executable directory and start:
-   ```bash
-   cd build/bin
-   ./gelu-cheetah r=2
-   ```
-   > You can replace `gelu` with other activation functions such as `tanh`, `sigmoid`, or `elu` to test different functionalities.
+The project is organized as follows:
 
-You can change the `SERVER_IP` and `SERVER_PORT` defined in the [scripts/common.sh](scripts/common.sh) to run the demo remotely.
-Also, you can use our throttle script to mimic a remote network condition within one Linux machine, see below.
+- **/SCI/tests**
+  Contains all our related code, including implementations of activation functions and models.
 
-### Mimic an WAN setting within LAN on Linux
+- **/SCI/src/BuildingBlocks**
+  Contains core protocol implementations:
+  - geometric_perspective_protocols.cpp/h - MW protocol implementation
 
-* To use the throttle script under [scripts/throttle.sh](scripts/throttle.sh) to limit the network speed and ping latency (require `sudo`)
-* For example, run `sudo scripts/throttle.sh wan` on a Linux OS which will limit the local-loop interface to about 400Mbps bandwidth and 40ms ping latency.
-  You can check the ping latency by just `ping 127.0.0.1`. The bandwidth can be check using extra `iperf` command.
+- **/networks**
+  Contains our evaluation programs:
+  - main_exp_nagx.cpp - exp(-x) implementation using VOLE
+  - main_exp_nagx_iknp.cpp - exp(-x) implementation using IKNP-OT
+  - main_gelu.cpp - GELU activation function
 
-**Reference Repository:**  
-**Project webpage:** <[Cheetah](https://github.com/Alibaba-Gemini-Lab/OpenCheetah/tree/main)>
+## Running Tests
+
+To run the unit tests, use the following commands:
+
+```bash
+# Build the project
+cd build
+cmake ..
+make -j
+
+# Run exp_nagx test
+./bin/exp_nagx-cheetah r=1 d=1024 & ./bin/exp_nagx-cheetah r=2 d=1024 ip=127.0.0.1
+
+# Run GELU test
+./bin/gelu-cheetah r=1 & ./bin/gelu-cheetah r=2
+```
+
+## Benchmark
+
+To run the exp_nagx benchmark from 2^10 to 2^18 elements:
+
+```bash
+bash test_exp_nagx_benchmark.sh
+```
