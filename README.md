@@ -37,6 +37,4 @@ bash test_exp_nagx_benchmark.sh
 
 ## Reference Repository
 
-**Project webpage:** [BOLT](https://github.com/Clive2312/EzPC/tree/bert/SCI)
-
-**Project webpage:** [SEAF](https://github.com/geralt-tian/SEAF)
+**Project webpage:** [OpenCheetah](https://github.com/Alibaba-Gemini-Lab/OpenCheetah)
