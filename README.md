@@ -33,22 +33,20 @@ We successfully completed the compilation on Ubuntu 22.04.5 LTS with Intel(R) Xe
   * Ubuntu 18.04 with gcc 7.5.0 Intel(R) Xeon(R),  cmake 3.13
   * Ubuntu 20.04 with gcc 9.4.0 Intel(R) Xeon(R),  cmake 3.16.3
   
-### Building Cheetah and SCI-HE Demo
+### Building the Project
 
-* Run `bash scripts/build.sh` which will build 6 executables in the `build/bin` folder
-	* `resnet50-cheetah` 
-	* `sqnet-cheetah`
-	* `densenet121-cheetah`
-	* `resnet50-SCI_HE`
-	* `sqnet-SCI_HE`
-	* `densenet121-SCI_HE`
+* Run `bash scripts/build-deps.sh` to build dependencies first
+* Then build the project:
+  ```bash
+  cd build
+  cmake ..
+  make -j
+  ```
+* This will build the `exp_nagx-cheetah` executable in the `build/bin` folder
 
 ## Code Structure
 
 The project is organized as follows:
-
-- **/SCI/tests**
-  Contains all our related code, including implementations of activation functions and models.
 
 - **/SCI/src/BuildingBlocks**
   Contains core protocol implementations:
@@ -56,9 +54,7 @@ The project is organized as follows:
 
 - **/networks**
   Contains our evaluation programs:
-  - main_exp_nagx.cpp - exp(-x) implementation using VOLE
-  - main_exp_nagx_iknp.cpp - exp(-x) implementation using IKNP-OT
-  - main_gelu.cpp - GELU activation function
+  - main_exp_nagx.cpp - exp(-x) implementation using VOLE-style OT
 
 
 ## Benchmark
